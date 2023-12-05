@@ -6,6 +6,10 @@
 #include <map>
 #include <queue>
 #include <set>
+#include <float.h>
+#include <regex>
+#include <cmath>
+#include <algorithm>
 
 using namespace std;
 
@@ -36,10 +40,9 @@ struct CampData {
 
     // this will store the nearby neighbors for every campsite
     vector<CampData*> neighbors;
-
+    CampData* parent = nullptr;
+    double f;
 };
-
-// straight ripped this equation from chat gpt, should be more accurate than the previous one
 double calculateDistance(CampData &origin, CampData &dest) {
     double dist;
     constexpr double Pi = 3.14159265358979323846;
@@ -75,6 +78,8 @@ void createNeighbors(double distanceThreshold, map<string, CampData> &camps) {
 
 // ADDED THIS TO BE USED IN YENS ALGORITHM //
 
+// ADDED THIS TO BE USED IN YENS ALGORITHM //
+
 struct CompareDist {
     bool operator()(const pair<double, CampData*>& a, const pair<double, CampData*>& b) {
         return a.first > b.first;
@@ -82,13 +87,11 @@ struct CompareDist {
 };
 
 // YENS ALGORITHM //
-vector<CampData> YensAlgo(int numNodes, map<string, CampData> &camps, const string& oriCity, const string& destCity) {
-    // result vector is to store the path //
+vector<CampData> DikistraAlgo(map<string, CampData> &camps, const string& oriCity, const string& destCity) {
     vector<CampData> result;
-    priority_queue<pair<double,CampData*>, vector<pair<double,CampData*>>, CompareDist> candidates;
+    priority_queue<pair<double, CampData*>, vector<pair<double, CampData*>>, CompareDist> candidates;
     set<CampData*> visited;
 
-    // origin city will be a part of the given map, without any campsite data, just the starting location.
     auto itStart = camps.find(oriCity);
 
     if (itStart == camps.end()) {
@@ -96,7 +99,6 @@ vector<CampData> YensAlgo(int numNodes, map<string, CampData> &camps, const stri
         return result;
     }
 
-    // destination city will be a part of the given map, without any campsite data, just the ending location.
     auto itEnd = camps.find(destCity);
 
     if (itEnd == camps.end()) {
@@ -109,34 +111,135 @@ vector<CampData> YensAlgo(int numNodes, map<string, CampData> &camps, const stri
 
     candidates.push({0.0, start});
 
-
-    while(!candidates.empty()){
+    while (!candidates.empty()) {
         CampData* temp = candidates.top().second;
         double currentDistance = candidates.top().first;
         candidates.pop();
 
-        if(temp == end){
+        if (temp == end) {
             result.push_back(*temp);
             break;
         }
-        if(visited.find(temp) == visited.end()){
+
+        if (visited.find(temp) == visited.end()) {
             visited.insert(temp);
             result.push_back(*temp);
-            // loops through neighbors
-            for(CampData* neighbor: temp->neighbors){
-                if(visited.find(neighbor) == visited.end()){
+
+            // Loop through neighbors
+            for (CampData* neighbor : temp->neighbors) {
+                if (visited.find(neighbor) == visited.end()) {
                     double potentialDistance = currentDistance + calculateDistance(*temp, *neighbor);
                     candidates.push({potentialDistance, neighbor});
-
                 }
             }
         }
     }
+
     return result;
 }
 
-vector<CampData> BidirectionalSearch(int numNodes, map<string, CampData> &camps, const string& oriCity, const string& destCity) {
 
+struct CompareAStar {
+    bool operator()(const pair<double, CampData*>& a, const pair<double, CampData*>& b) {
+        return (a.first + a.second->sites) > (b.first + b.second->sites);
+    }
+};
+
+vector<CampData> AStar(map<string, CampData> &camps, const string& oriCity, const string& destCity) {
+    vector<CampData> result;
+    priority_queue<pair<double, CampData*>, vector<pair<double, CampData*>>, CompareAStar> openList;
+    set<CampData*> closedList;
+
+    // Initialize the open list
+    //2.  Initialize the closed list
+
+    auto Iterator1 = camps.find(oriCity);
+    auto Iterator2 = camps.find(destCity);
+
+    CampData* start = &Iterator1->second;
+    CampData* end = &Iterator2->second;
+    double gScore, hScore, fScore;
+
+    if (Iterator1 == camps.end() || Iterator2 == camps.end()) {
+        cerr << "Error: Origin or destination city missing from map." << endl;
+        return result;
+    }
+
+    // Comments based on A* implementation from GeeksForGeeks
+    // https://www.geeksforgeeks.org/a-search-algorithm/
+    // Step 2
+    openList.push({0.0, start});
+
+    // Step 3
+    // while the open list is not empty
+
+    while (!openList.empty()) {
+        // Step   a) find the node with the least f on
+        //       the open list, call it "q"
+        CampData* current = openList.top().second;
+
+        // Step 3b
+        //  b) pop q off the open list
+        openList.pop();
+
+        //  c) generate q's successors and set their
+        //       parents to q
+        for (CampData* successor : current->neighbors) {
+            if (closedList.find(successor) != closedList.end()) {
+                continue;
+            }
+
+            //   d) for each successor
+            //  i) if successor is the goal, stop search
+            if (successor->camp == end->camp) {
+                // Stop search
+                // Reconstruct the path and return result
+                result.push_back(*successor);
+                while (current != nullptr) {
+
+                    result.push_back(*current);
+                    current = current->parent;
+                }
+                reverse(result.begin(), result.end());
+                return result;
+            }
+
+
+            // ii) Compute g and h for successorii) else, compute both g and h for successor
+            //          successor.g = q.g + distance between
+            //                              successor and q
+            //          successor.h = distance from goal to
+            //          successor
+            gScore = openList.top().first + calculateDistance(*current, *successor);
+            hScore = calculateDistance(*successor, *end);
+            fScore = gScore + hScore;
+
+            successor->f = fScore;
+            //  iii) if a node with the same position as
+            //            successor is in the OPEN list which has a
+            //           lower f than successor, skip this successor
+            //Not sure how to implemenet this correctly
+            if (closedList.find(successor) != closedList.end() && fScore >= successor->f) {
+                continue;
+            }
+            // iv) Skip this successor if a node with the same position in the CLOSED list has a lower f
+            if (closedList.find(successor) != closedList.end() && fScore >= successor->f) {
+                continue;
+            }
+
+
+            // Add the node to the open list
+            openList.push({fScore, successor});
+            successor->parent = current;
+        }
+
+        // Step 3e
+        closedList.insert(current);
+    }
+
+    // If the open list becomes empty and the destination is not reached
+    cout <<"Destination is not reachable with these parameters " << endl;
+    return result;
 }
 
 int main() {
@@ -157,6 +260,19 @@ int main() {
     getline(isb, destCity, ',');
     getline(isb, destState);
     destState = destState.substr(1, destState.length()-1);
+
+    int distanceThreshold = 600;
+    std::regex numbersOnly("^[0-9]+$");
+    cout << "How far are you willing to drive between campsites?" << endl;
+    getline(cin, input);
+    if (regex_match(input, numbersOnly)) {
+        distanceThreshold = stoi(input);
+    }
+    else {
+        cout << "That's not a number unfortunately :(" << endl;
+        return 1;
+    }
+
 
     ifstream cityCSV("cities.csv");
 
@@ -232,31 +348,31 @@ int main() {
     cout << "Would you like your campsites to have toilets? (type 'y' if yes)" << endl;
     getline(cin, input);
     if (input == "y" || input == "Y") {
-       toiletsb = true;
+        toiletsb = true;
     }
 
     cout << "Would you like your campsites to allow pets? (type 'y' if yes)" << endl;
     getline(cin, input);
     if (input == "y" || input == "Y") {
-       petsb = true;
+        petsb = true;
     }
 
     cout << "Would you like your campsites to be cheap? (type 'y' if yes)" << endl;
     getline(cin, input);
     if (input == "y" || input == "Y") {
-       cheapb = true;
+        cheapb = true;
     }
 
     cout << "Would you like your campsites to allow reservations? (type 'y' if yes)" << endl;
     getline(cin, input);
     if (input == "y" || input == "Y") {
-       reserveb = true;
+        reserveb = true;
     }
 
     cout << "Would you like your campsites to have RV Hookups? (type 'y' if yes)" << endl;
     getline(cin, input);
     if (input == "y" || input == "Y") {
-       hookupsb = true;
+        hookupsb = true;
     }
 
     cout << "Would you like your campsites to have Sanitary Dumps? (type 'y' if yes)" << endl;
@@ -393,33 +509,33 @@ int main() {
             }
         }
         // here's a test:
-        createNeighbors(double(1000), campsites);
+        createNeighbors(distanceThreshold, campsites);
         std::cout << "Test" << std::endl;
         // set a breakpoint ^here and debug to verify the campsites are filled with the right neighbors, should be a quick
         // runtime with distanceThreshold set to 25.
         testing = false;
     }
 
-    cout << "How many of the "<< campsites.size()-2 <<" campsites would you like to visit?" << endl;
-    getline(cin, input);
-    int numCampsites = stoi(input);
-    if (numCampsites > campsites.size()-2) {
-        cout << "We can't find that many campsites that fit your criteria :(" << endl;
-        return 1;
-    }
+    // cout << "How many of the "<< campsites.size()-2 <<" campsites would you like to visit?" << endl;
+    // getline(cin, input);
+    // int numCampsites = stoi(input);
+    // if (numCampsites > campsites.size()-2) {
+    //    cout << "Too many campsites :(" << endl;
+    //    return 1;
+    //}
 
     cout << "Would you like to find your campsites using Yen's Algorithm or Bidirectional Search? type \"1\" or \"2\"" << endl;
     getline(cin, input);
     vector<CampData> camps;
     if (input == "1") {
-        camps = YensAlgo(numCampsites, campsites, oriCity, destCity);
+        camps = DikistraAlgo(campsites, oriCity, destCity);
     }
     else if (input == "2") {
-        camps = BidirectionalSearch(numCampsites, campsites, oriCity, destCity);
+        camps = AStar(campsites, oriCity, destCity);
     }
     else if (input == "3") {
         auto it = campsites.begin();
-        for (int i = 0; i<numCampsites+2; i++) {
+        for (int i = 0; i<campsites.size(); i++) {
             camps.push_back(it->second);
             it++;
         }
