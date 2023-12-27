@@ -23,7 +23,7 @@ struct CampData {
     string phone;
     string url;
     string town;
-    int sites = 0;
+    int sites = 1;
     int camp_id;
     // made all of these variables boolean, so we can simplify the search and printing for these variables.
     bool hookups;
@@ -55,15 +55,18 @@ double calculateDistance(CampData &origin, CampData &dest) {
     double havDeltaLat = sin(deltaLat / 2) * sin(deltaLat / 2);
     double havDeltaLon = sin(deltaLon / 2) * sin(deltaLon / 2);
     double a = havDeltaLat + cos(lat1) * cos(lat2) * havDeltaLon;
-    dist = 6371 * 2 * atan2(sqrt(a), sqrt(1 - a));
+    // Earth's mean radius in miles
+    constexpr double EarthRadiusMiles = 3959.0;
+    dist = EarthRadiusMiles * 2 * atan2(sqrt(a), sqrt(1 - a));
     return dist;
 }
 
-// this function takes in the map and the diatance threshold and fills the neighbors vector with neighbors within the
+// this function takes in the map and the distance threshold and fills the neighbors vector with neighbors within the
 // distance threshold
-void createNeighbors(double distanceThreshold, map<string, CampData> &camps) {
+void createNeighbors(map<string, CampData> &camps, double distanceThreshold) {
     //loop through every node and calculate if its long and lat is within neighbor distance of the other node
-    for (auto it = camps.begin(); it != camps.end(); it++) {
+    auto it = camps.begin();
+    while (next(it) != camps.end()) {
         for (auto jt = next(it); jt != camps.end(); jt++) {
             // these^ loop should optimize this function to not loop through every campsite multiple times
             double distance = calculateDistance(it->second, jt->second);
@@ -73,12 +76,30 @@ void createNeighbors(double distanceThreshold, map<string, CampData> &camps) {
                 jt->second.neighbors.push_back(&it->second);
             }
         }
+        if (it->second.neighbors.size() == 0) {
+            auto ik = it;
+            it++;
+            camps.erase(ik);
+        }
+        else {
+            it++;
+        }
     }
 }
 
-// ADDED THIS TO BE USED IN YENS ALGORITHM //
-
-// ADDED THIS TO BE USED IN YENS ALGORITHM //
+void createNeighbors(map<string, CampData> &camps) {
+    //loop through every node and calculate if its long and lat is within neighbor distance of the other node
+    auto it = camps.begin();
+    while (next(it) != camps.end()) {
+        for (auto jt = next(it); jt != camps.end(); jt++) {
+            // this^ loop should optimize this function to not loop through every campsite multiple times
+                // add both as neighbors only once to each other since every neighbor also has the node as a neighbor
+            it->second.neighbors.push_back(&jt->second);
+            jt->second.neighbors.push_back(&it->second);
+        }
+        it++;
+    }
+}
 
 struct CompareDist {
     bool operator()(const pair<double, CampData*>& a, const pair<double, CampData*>& b) {
@@ -86,8 +107,8 @@ struct CompareDist {
     }
 };
 
-// YENS ALGORITHM //
-vector<CampData> DikistraAlgo(map<string, CampData> &camps, const string& oriCity, const string& destCity) {
+// Modified Dijkstra's //
+vector<CampData> DijkstrasAlgo(map<string, CampData> &camps, const string& oriCity, const string& destCity) {
     vector<CampData> result;
     priority_queue<pair<double, CampData*>, vector<pair<double, CampData*>>, CompareDist> candidates;
     set<CampData*> visited;
@@ -242,6 +263,77 @@ vector<CampData> AStar(map<string, CampData> &camps, const string& oriCity, cons
     return result;
 }
 
+vector<CampData> numCampsAlgo(map<string, CampData> &camps, const string& oriCity, const string& destCity) {
+
+    double totalDistance = calculateDistance(camps[oriCity], camps[destCity]);
+    cout << "Total Distance: " << totalDistance << endl;
+    vector<CampData> route;
+    std::regex numbersOnly("^[0-9]+$");
+    string input;
+    cout << "How many of the " << camps.size()-2 << " campsites would you like to visit?" << endl;
+    getline(cin, input);
+    int numCamps = stoi(input);
+    if (numCamps > camps.size()-2) {
+        cout << "Too many campsites :(" << endl;
+        return route;
+    }
+    if (regex_match(input, numbersOnly)) {
+        int numCamps = stoi(input);
+    }
+    else {
+        cout << "That's not a number unfortunately :(" << endl;
+        return route;
+    }
+
+    //cout << "How far are you willing to drive between campsites?" << endl;
+    //getline(cin, input);
+    createNeighbors(camps);
+    route.resize(numCamps+2);
+    route[0] = camps[oriCity];
+
+    double avgDistance = totalDistance/numCamps;
+    cout << "Total Distance: " << totalDistance << endl;
+    cout << "Average Distance: " << avgDistance << endl;
+    cout << "Neighbors created" << endl;
+
+    map<string, double> dist2dest;
+    auto it = camps.begin();
+    while (it != camps.end()) {
+        string node = it->second.camp;
+        double dist = calculateDistance(it->second, camps[destCity]);
+        dist2dest.emplace(node, dist);
+        it++;
+    }
+    cout << "Distances calcultated." << endl;
+
+    CampData curr;
+    double comparator;
+    double currDist;
+    double bestPath;
+    for (int i = 0; i < route.size()-3; i++) {
+        bestPath = 7000;
+        for (int j = 0; j < route[i].neighbors.size(); j++) {
+            if (route[i].neighbors[j]->camp == curr.camp || route[i].neighbors[j]->camp == route[0].camp) {
+                continue;
+            }
+            else {
+                currDist = dist2dest[route[i].neighbors[j]->camp];
+                comparator = abs(currDist - avgDistance);
+                if (comparator < bestPath) {
+                    bestPath = comparator;
+                    curr = it->second;
+                }
+            }
+        }
+        cout << "Adding to the route." << endl;
+        route[i+1] = curr;
+    }
+
+    return route;
+
+}
+
+
 int main() {
     string input;
     cout << "Where would you like to start your camping trip from? \"City, State\"" << endl;
@@ -263,7 +355,7 @@ int main() {
 
     int distanceThreshold = 600;
     std::regex numbersOnly("^[0-9]+$");
-    cout << "How far are you willing to drive between campsites?" << endl;
+    cout << "Whats the farthest you're willing to drive between campsites?" << endl;
     getline(cin, input);
     if (regex_match(input, numbersOnly)) {
         distanceThreshold = stoi(input);
@@ -273,25 +365,18 @@ int main() {
         return 1;
     }
 
-
     ifstream cityCSV("cities.csv");
 
     if (!cityCSV.is_open()) {
-        cerr << "Error: Unable to open the file " << "cities.csv" << endl;
+        cerr << "Error: Unable to open the file \"cities.csv\"" << endl;
         return 1;
     }
 
     string line;
     getline(cityCSV, input);
 
-    string search;
-    string trash;
-    string oriLo;
-    string oriLa;
-    string desLo;
-    string desLa;
-    CampData destination;
-    CampData origin;
+    string search, trash, oriLo, oriLa, desLo, desLa;
+    CampData destination, origin;
 
     while (getline(cityCSV, line)) {
         istringstream isc(line);
@@ -306,7 +391,7 @@ int main() {
                 origin.lon = stod(input);
             }
             else {
-                cout << "Check the spelling on the state or try another city." << endl;
+                cout << "Check the spelling on the origin state or try another city." << endl;
                 return 1;
             }
         }
@@ -320,7 +405,7 @@ int main() {
                 destination.lon = stod(input);
             }
             else {
-                cout << "Check the spelling on the state or try another city." << endl;
+                cout << "Check the spelling on the destination state or try another city." << endl;
                 return 1;
             }
         }
@@ -330,14 +415,7 @@ int main() {
     campsites.insert(pair<string, CampData> (oriCity, origin));
     campsites.insert(pair<string, CampData> (destCity, destination));
 
-    bool showersb = false;
-    bool toiletsb = false;
-    bool petsb = false;
-    bool cheapb = false;
-    bool reserveb = false;
-    bool hookupsb = false;
-    bool sanib = false;
-    bool waterb = false;
+    bool showersb, toiletsb, petsb, cheapb, reserveb, hookupsb, sanib, waterb = false;
 
     cout << "Would you like your campsites to have showers? (type 'y' if yes)" << endl;
     getline(cin, input);
@@ -389,146 +467,117 @@ int main() {
 
     cout << "...One moment while the map populates..." << endl;
 
-    bool testing = true;
-    while (testing) {
-        // Open the CSV file
-        ifstream file("camp.csv");
+    // Open the CSV file
+    ifstream file("camp.csv");
 
-        // Check if the file is open
-        if (!file.is_open()) {
-            cerr << "Error: Unable to open the campsite database" << endl;
-            return 1;
+    // Check if the file is open
+    if (!file.is_open()) {
+        cerr << "Error: Unable to open the campsite database" << endl;
+        return 1;
+    }
+    // Read and discard the header line
+    getline(file, input);
+
+    // Creating variables to hold input before they're converted to int and bool
+    string name, latitude, longitude, confirm, reserve, sani, num_sites, rv, vc, water, ID, shower, pets, fee;
+
+    // Read each line from the file
+    while (getline(file, line)) {
+        istringstream iss(line);
+        CampData camp;
+        // Read each column from the line using getline
+        getline(iss, latitude, ',');
+        camp.lat = stod(latitude);
+        getline(iss, longitude, ',');
+        camp.lon = stod(longitude);
+        getline(iss, camp.camp, ',');
+        getline(iss, camp.state, ',');
+        getline(iss, name, ',');
+        camp.name = name;
+        getline(iss, camp.type, ',');
+        getline(iss, camp.phone, ',');
+        getline(iss, num_sites, ',');
+        if (num_sites.length() != 0 && num_sites != "dispersed") {
+            camp.sites = stoi(num_sites);
         }
-        // Read and discard the header line
-        getline(file, input);
-
-        // Creating variables to hold input before they're converted to int and bool
-        string line;
-        string name;
-        string latitude;
-        string longitude;
-        string confirm;
-        string reserve;
-        string sani;
-        string num_sites;
-        string rv;
-        string vc;
-        string water;
-        string ID;
-        string shower;
-        string pets;
-        string fee;
-
-        // Read each line from the file
-        while (getline(file, line)) {
-            istringstream iss(line);
-            CampData camp;
-            // Read each column from the line using getline
-            getline(iss, latitude, ',');
-            getline(iss, longitude, ',');
-            camp.lat = stod(latitude);
-            camp.lon = stod(longitude);
-            getline(iss, camp.camp, ',');
-            getline(iss, camp.state, ',');
-            getline(iss, name, ',');
-            camp.name = name;
-            getline(iss, camp.type, ',');
-            getline(iss, camp.phone, ',');
-            getline(iss, num_sites, ',');
-            if (num_sites.length() != 0 && num_sites != "dispersed") {
-                camp.sites = stoi(num_sites);
-            }
-            getline(iss, rv, ',');
-            if (rv == "E" || rv == "WE" || rv == "WES") {
-                camp.hookups = true;
-            }
-            else if (hookupsb) {
-                camp.approved = false;
-            }
-            getline(iss, vc, ',');
-            if (vc == "FT" || vc == "VT" || vc == "FTVT" || vc == "PT") {
-                camp.toilets = true;
-            }
-            else if (toiletsb) {
-                camp.approved = false;
-            }
-            getline(iss, water, ',');
-            if (water == "DW") {
-                camp.water = true;
-            }
-            else if (waterb) {
-                camp.approved = false;
-            }
-            getline(iss, camp.url, ',');
-            getline(iss, ID, ',');
-            camp.camp_id = stoi(ID);
-            getline(iss, confirm, ',');
-            if (confirm == "1") {
-                camp.url_confirmed = true;
-            }
-            getline(iss, reserve, ',');
-            if (reserve == "RS") {
-                camp.reservations = true;
-            }
-            else if (reserveb) {
-                camp.approved = false;
-            }
-            getline(iss, camp.town, ',');
-            getline(iss, sani, ',');
-            if (sani == "DP") {
-                camp.dump = true;
-            }
-            else if (sanib) {
-                camp.approved = false;
-            }
-            getline(iss, shower, ',');
-            if (shower == "SH") {
-                camp.showers = true;
-            }
-            else if (showersb) {
-                camp.approved = false;
-            }
-            getline(iss, pets, ',');
-            if (pets == "PA") {
-                camp.pets = true;
-            }
-            else if (petsb) {
-                camp.approved = false;
-            }
-            getline(iss, fee, ',');
-            if (!fee.empty()) {
-                camp.cheap = true;
-            }
-            else if (cheapb) {
-                camp.approved = false;
-            }
-
-            // If the data matches requirement, add to map.
-            if (camp.approved) {
-                campsites.insert(pair<string, CampData>(ID, camp));
-            }
+        getline(iss, rv, ',');
+        if (rv == "E" || rv == "WE" || rv == "WES") {
+            camp.hookups = true;
         }
-        // here's a test:
-        createNeighbors(distanceThreshold, campsites);
-        std::cout << "Test" << std::endl;
-        // set a breakpoint ^here and debug to verify the campsites are filled with the right neighbors, should be a quick
-        // runtime with distanceThreshold set to 25.
-        testing = false;
+        else if (hookupsb) {
+            camp.approved = false;
+        }
+        getline(iss, vc, ',');
+        if (vc == "FT" || vc == "VT" || vc == "FTVT" || vc == "PT") {
+            camp.toilets = true;
+        }
+        else if (toiletsb) {
+            camp.approved = false;
+        }
+        getline(iss, water, ',');
+        if (water == "DW") {
+            camp.water = true;
+        }
+        else if (waterb) {
+            camp.approved = false;
+        }
+        getline(iss, camp.url, ',');
+        getline(iss, ID, ',');
+        camp.camp_id = stoi(ID);
+        getline(iss, confirm, ',');
+        if (confirm == "1") {
+            camp.url_confirmed = true;
+        }
+        getline(iss, reserve, ',');
+        if (reserve == "RS") {
+            camp.reservations = true;
+        }
+        else if (reserveb) {
+            camp.approved = false;
+        }
+        getline(iss, camp.town, ',');
+        getline(iss, sani, ',');
+        if (sani == "DP") {
+            camp.dump = true;
+        }
+        else if (sanib) {
+            camp.approved = false;
+        }
+        getline(iss, shower, ',');
+        if (shower == "SH") {
+            camp.showers = true;
+        }
+        else if (showersb) {
+            camp.approved = false;
+        }
+        getline(iss, pets, ',');
+        if (pets == "PA") {
+            camp.pets = true;
+        }
+        else if (petsb) {
+            camp.approved = false;
+        }
+        getline(iss, fee, ',');
+        if (!fee.empty()) {
+            camp.cheap = true;
+        }
+        else if (cheapb) {
+            camp.approved = false;
+        }
+
+        // If the data matches requirement, add to map.
+        if (camp.approved) {
+            campsites.insert(pair<string, CampData>(ID, camp));
+        }
     }
 
-    // cout << "How many of the "<< campsites.size()-2 <<" campsites would you like to visit?" << endl;
-    // getline(cin, input);
-    // int numCampsites = stoi(input);
-    // if (numCampsites > campsites.size()-2) {
-    //    cout << "Too many campsites :(" << endl;
-    //    return 1;
-    //}
+    cout << campsites.size()-2 <<" campsites found." << endl;
 
     cout << "Would you like to find your campsites using Yen's Algorithm or Bidirectional Search? type \"1\" or \"2\"" << endl;
     getline(cin, input);
     vector<CampData> camps;
     if (input == "1") {
-        camps = DikistraAlgo(campsites, oriCity, destCity);
+        camps = DijkstrasAlgo(campsites, oriCity, destCity);
     }
     else if (input == "2") {
         camps = AStar(campsites, oriCity, destCity);
@@ -540,6 +589,12 @@ int main() {
             it++;
         }
     }
+    else if (input == "4") {
+        camps = numCampsAlgo(campsites, oriCity, destCity);
+    }
+    else if (input == "5") {
+        //camps = willAlgo(campsites, oriCity, destCity);
+    }
     else {
         cout << "ur a bum for not putting a good number" << endl;
         return 1;
@@ -547,7 +602,7 @@ int main() {
 
     cout << endl;
     cout << "Here's your itinerary!" << endl;
-    cout << "After leaving from " << oriCity << ", you'll travel to " << camps[1].camp << endl;
+    cout << "After leaving from " << oriCity << ", you'll travel << " << calculateDistance(camps[0], camps[1]) << " kilometers to " << camps[1].camp << endl;
     for (int i = 1; i < camps.size()-1; i++) {
         cout << "Campsite #" << i << ": " << camps[i].camp << " in " << camps[i].town << ", " << camps[i].state << endl;
         cout << "# of campsites: " << camps[i].sites << endl;
@@ -608,9 +663,10 @@ int main() {
             cout << " (unconfirmed)" << endl;
         }
         cout << "Phone number: " << camps[i].phone << endl;
-        cout << "After leaving from " << camps[i].camp << " you'll travel to " << camps[i+1].camp << endl;
+        cout << "After leaving from " << camps[i].camp << " you'll travel " << calculateDistance(camps[i], camps[i+1]) << "kilometers to " << camps[i+1].camp << endl;
         cout << endl;
     }
+    cout << "Welcome to " << destCity << endl;
     cout << "There's your trip! Happy Camping :)" << endl;
     return 1;
 }

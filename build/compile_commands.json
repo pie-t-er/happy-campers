@@ -1,0 +1,8 @@
+[
+{
+  "directory": "/Users/lifter/CLionProjects/COP3530/happy-campers/build",
+  "command": "/usr/bin/clang++  -I/Users/lifter/CLionProjects/COP3530/happy-campers/. -g -std=gnu++14 -arch arm64 -isysroot /Library/Developer/CommandLineTools/SDKs/MacOSX14.0.sdk -mmacosx-version-min=13.6 -o CMakeFiles/happy_campers.dir/main.cpp.o -c /Users/lifter/CLionProjects/COP3530/happy-campers/main.cpp",
+  "file": "/Users/lifter/CLionProjects/COP3530/happy-campers/main.cpp",
+  "output": "CMakeFiles/happy_campers.dir/main.cpp.o"
+}
+]

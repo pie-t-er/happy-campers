@@ -1,0 +1,3 @@
+/Users/lifter/CLionProjects/COP3530/happy-campers/cmake-build-debug/CMakeFiles/happy_campers.dir
+/Users/lifter/CLionProjects/COP3530/happy-campers/cmake-build-debug/CMakeFiles/edit_cache.dir
+/Users/lifter/CLionProjects/COP3530/happy-campers/cmake-build-debug/CMakeFiles/rebuild_cache.dir
