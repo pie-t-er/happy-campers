@@ -110,7 +110,7 @@ struct CompareDist {
 // Modified Dijkstra's //
 vector<CampData> DijkstrasAlgo(map<string, CampData> &camps, const string& oriCity, const string& destCity) {
     vector<CampData> result;
-    priority_queue<pair<double, CampData*>, vector<pair<double, CampData*>>, CompareDist> candidates;
+    priority_queue<pair<double, CampData*>, vector<pair<double, CampData*>  > , CompareDist> candidates;
     set<CampData*> visited;
 
     auto itStart = camps.find(oriCity);
